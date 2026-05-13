@@ -1937,7 +1937,7 @@
         </div>
 
         <!-- 第三排：结果预览区 -->
-        <div id="resultArea" class="glass-panel rounded-2xl p-5 hidden">
+        <div id="resultArea" class="glass-panel rounded-2xl p-5">
             <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5" style="color: var(--accent-green);" fill="none" stroke="currentColor"
                     viewBox="0 0 24 24">
@@ -1948,8 +1948,16 @@
             </h2>
             <div class="relative group result-preview-container rounded-lg" style="background: var(--bg-input);">
                 <img id="resultImage" class="rounded-lg shadow-2xl" />
-                <div
-                    class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-4">
+                <div id="resultEmptyState" class="absolute inset-0 flex flex-col items-center justify-center text-sm"
+                    style="color: var(--text-muted);">
+                    <svg class="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>点击「生成图像」按钮生成分镜故事板</span>
+                </div>
+                <div id="resultActions"
+                    class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-4 hidden">
                     <button onclick="openImageModal(document.getElementById('resultImage').src)" class="result-zoom-btn"
                         title="放大预览">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1981,7 +1989,7 @@
         </div>
 
         <!-- 第四排：视频提示词生成 -->
-        <div id="videoPromptArea" class="glass-panel rounded-2xl p-5 hidden">
+        <div id="videoPromptArea" class="glass-panel rounded-2xl p-5">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-semibold flex items-center gap-2">
                     <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
@@ -2803,14 +2811,18 @@
                 return;
             }
 
-            let imageBase64 = resultImage.src;
-            if (!imageBase64.startsWith('data:')) {
+            const imageUrl = resultImage.dataset.originalUrl || resultImage.src;
+            let imageBase64 = imageUrl;
+
+            if (!imageUrl.startsWith('data:')) {
                 try {
-                    const response = await apiFetch('/api/proxy-image?url=' + encodeURIComponent(resultImage.src));
+                    const response = await apiFetch('/api/proxy-image?url=' + encodeURIComponent(imageUrl));
                     const blob = await response.blob();
-                    imageBase64 = await blobToBase64(blob);
+                    imageBase64 = await compressBlobToBase64(blob);
                 } catch (e) {
-                    console.error('Failed to fetch result image:', e);
+                    console.error('Failed to fetch/compress image:', e);
+                    showMessage('图片获取或压缩失败: ' + e.message, 'error');
+                    return;
                 }
             }
 
@@ -2824,7 +2836,23 @@
                 showMessage('暂无结果图片', 'error');
                 return;
             }
-            await generateVideoPromptInternal(resultImage.src, getParsedPromptText().trim());
+
+            const imageUrl = resultImage.dataset.originalUrl || resultImage.src;
+            let imageBase64 = imageUrl;
+
+            if (!imageUrl.startsWith('data:')) {
+                try {
+                    const response = await apiFetch('/api/proxy-image?url=' + encodeURIComponent(imageUrl));
+                    const blob = await response.blob();
+                    imageBase64 = await compressBlobToBase64(blob);
+                } catch (e) {
+                    console.error('Failed to fetch/compress image:', e);
+                    showMessage('图片获取或压缩失败: ' + e.message, 'error');
+                    return;
+                }
+            }
+
+            await generateVideoPromptInternal(imageBase64, getParsedPromptText().trim());
         }
 
         // 从历史记录生成视频提示词
@@ -2836,7 +2864,27 @@
                     showMessage('未找到历史记录', 'error');
                     return;
                 }
-                await generateVideoPromptInternal(item.imageData, item.prompt || '');
+                let imageBase64 = item.imageData;
+                if (imageBase64.startsWith('data:')) {
+                    if (imageBase64.length > 4 * 1024 * 1024) {
+                        try {
+                            imageBase64 = await compressBase64ToBase64(imageBase64);
+                        } catch (e) {
+                            console.error('Failed to compress history image:', e);
+                        }
+                    }
+                } else {
+                    try {
+                        const response = await apiFetch('/api/proxy-image?url=' + encodeURIComponent(imageBase64));
+                        const blob = await response.blob();
+                        imageBase64 = await compressBlobToBase64(blob);
+                    } catch (e) {
+                        console.error('Failed to fetch/compress history image:', e);
+                        showMessage('图片获取或压缩失败: ' + e.message, 'error');
+                        return;
+                    }
+                }
+                await generateVideoPromptInternal(imageBase64, item.prompt || '');
             } catch (error) {
                 console.error('Failed to load history for video prompt:', error);
                 showMessage('加载历史记录失败', 'error');
@@ -4038,6 +4086,79 @@
 
                 img.src = url;
             });
+        }
+
+        // 压缩 Blob 为 base64（用于 LLM 多模态输入），按设置参数 + 自适应兜底
+        async function compressBlobToBase64(blob, maxSizeBytes = 8 * 1024 * 1024) {
+            const maxEdge = parseInt(document.getElementById('maxEdgeLength')?.value) || 1536;
+            let quality = parseFloat(document.getElementById('jpegQuality')?.value) || 0.85;
+
+            const toBase64 = (img, w, h, q) => new Promise((resolve, reject) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob((compressedBlob) => {
+                    if (!compressedBlob) return reject(new Error('Canvas toBlob failed'));
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(compressedBlob);
+                }, 'image/jpeg', q);
+            });
+
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const url = URL.createObjectURL(blob);
+
+                img.onload = async () => {
+                    URL.revokeObjectURL(url);
+                    let { width, height } = img;
+                    const maxDim = Math.max(width, height);
+
+                    if (maxDim > maxEdge) {
+                        const scale = maxEdge / maxDim;
+                        width = Math.round(width * scale);
+                        height = Math.round(height * scale);
+                    }
+
+                    let result = await toBase64(img, width, height, quality);
+
+                    // 自适应兜底：如果仍超上限则自动降低
+                    while (result.length > maxSizeBytes) {
+                        if (quality > 0.35) {
+                            quality = Math.max(0.3, quality - 0.15);
+                        } else if (width > 640) {
+                            width = Math.round(width * 0.7);
+                            height = Math.round(height * 0.7);
+                            quality = 0.75;
+                        } else {
+                            break;
+                        }
+                        result = await toBase64(img, width, height, quality);
+                    }
+
+                    resolve(result);
+                };
+
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('Failed to load image from blob'));
+                };
+
+                img.src = url;
+            });
+        }
+
+        // 压缩 base64 dataURL（用于历史记录等已有 base64 的场景）
+        async function compressBase64ToBase64(dataUrl, maxSizeBytes = 8 * 1024 * 1024) {
+            if (!dataUrl.startsWith('data:')) return dataUrl;
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+            return compressBlobToBase64(blob, maxSizeBytes);
         }
 
         // Initialize Image Grid
@@ -5316,20 +5437,22 @@
 
         // 显示任务结果
         async function displayTaskResult(task) {
-            const resultArea = document.getElementById('resultArea');
             const resultImage = document.getElementById('resultImage');
             const downloadLink = document.getElementById('downloadLink');
             const jsonResult = document.getElementById('jsonResult');
-
-            resultArea.classList.remove('hidden');
+            const emptyState = document.getElementById('resultEmptyState');
+            const actions = document.getElementById('resultActions');
 
             // RunningHub API 返回的结果结构
             if (task.result && task.result.results && task.result.results.length > 0 && task.result.results[0].url) {
                 const imageUrl = task.result.results[0].url;
                 const proxiedUrl = await apiUrl('/api/proxy-image?url=' + encodeURIComponent(imageUrl));
                 resultImage.src = proxiedUrl;
+                resultImage.dataset.originalUrl = imageUrl;
                 downloadLink.href = proxiedUrl;
                 downloadLink.download = `generated-${Date.now()}.png`;
+                if (emptyState) emptyState.classList.add('hidden');
+                if (actions) actions.classList.remove('hidden');
                 if (jsonResult) jsonResult.classList.add('hidden');
             } else {
                 showMessage('返回数据格式异常', 'error');
@@ -5339,11 +5462,7 @@
                 }
             }
 
-            resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-            // 显示视频提示词生成区域
-            const videoPromptArea = document.getElementById('videoPromptArea');
-            if (videoPromptArea) videoPromptArea.classList.remove('hidden');
+            document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         // 保存任务结果到历史记录

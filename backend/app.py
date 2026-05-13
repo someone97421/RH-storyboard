@@ -182,7 +182,7 @@ def open_browser(port, delay=1.2):
 
 
 def main():
-    port = find_free_port()
+    port = 18300
     print(f"")
     print(f"  ╔══════════════════════════════════════════╗")
     print(f"  ║   RunningHubAI 故事板生成器               ║")
