@@ -5382,6 +5382,13 @@
             const taskFloatCountEl = document.getElementById('taskFloatCount');
             const btnText = document.getElementById('btnText');
             const loader = document.getElementById('btnLoader');
+            const previousContainerScrollTop = taskContainer.scrollTop;
+            const debugScrollPositions = new Map(
+                Array.from(taskContainer.querySelectorAll('.task-item[data-task-id]')).map(card => {
+                    const debugEl = card.querySelector('.task-debug-content');
+                    return [card.dataset.taskId, debugEl ? debugEl.scrollTop : 0];
+                })
+            );
             
             const pendingCount = taskQueue.filter(t => t.status === 'pending').length;
             const runningCount = taskQueue.filter(t => t.status === 'submitting' || t.status === 'polling').length;
@@ -5489,6 +5496,14 @@
                     `;
                 }).join('');
             }
+
+            taskContainer.scrollTop = previousContainerScrollTop;
+            debugScrollPositions.forEach((scrollTop, taskId) => {
+                const debugEl = taskContainer.querySelector(`.task-item[data-task-id="${taskId}"] .task-debug-content`);
+                if (debugEl) {
+                    debugEl.scrollTop = scrollTop;
+                }
+            });
             
             // 如果有状态变化，显示消息
             if (changedTask) {
@@ -5515,9 +5530,12 @@
             const el = document.querySelector(`[data-task-output-id="${taskId}"]`);
             if (!el) return;
             const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+            const previousScrollTop = el.scrollTop;
             el.textContent = text;
             if (wasAtBottom) {
                 el.scrollTop = el.scrollHeight;
+            } else {
+                el.scrollTop = previousScrollTop;
             }
         }
 
@@ -5542,6 +5560,7 @@
             if (debugEl && !debugEl.closest('.task-debug-section').classList.contains('expanded')) {
                 // 未展开时不需要更新调试信息
             } else if (debugEl) {
+                const previousScrollTop = debugEl.scrollTop;
                 const debugInfo = JSON.stringify({
                     id: task.id,
                     serverTaskId: task.serverTaskId,
@@ -5553,6 +5572,7 @@
                     startTime: new Date(task.startTime).toLocaleString()
                 }, null, 2);
                 debugEl.textContent = debugInfo;
+                debugEl.scrollTop = previousScrollTop;
             }
         }
 
