@@ -1,5 +1,10 @@
 # RunningHubAI Storyboard Generator / RunningHubAI 故事板生成器
 
+<img width="1312" height="682" alt="PixPin_2026-05-14_11-53-29" src="https://github.com/user-attachments/assets/0e1a917a-dca2-4501-9715-519dbe865f6a" />
+<img width="1409" height="3222" alt="PixPin_2026-05-14_11-52-44" src="https://github.com/user-attachments/assets/78f82918-1985-4ed5-8e5d-9948a7ab3b09" />
+<img width="660" height="671" alt="PixPin_2026-05-14_11-53-59" src="https://github.com/user-attachments/assets/167971e3-c72d-4540-b06a-8c4d7a9776ca" />
+<img width="3840" height="2160" alt="generated-1778730403247" src="https://github.com/user-attachments/assets/78285a64-926b-47e3-84de-cd96a648c162" />
+
 ## 中文使用方式
 
 这是一个本地运行的 RunningHubAI 故事板生成工具。前端页面用于编辑提示词、提交任务、轮询任务状态并查看结果；Python 后端作为本地代理，负责解决浏览器跨域请求问题。
