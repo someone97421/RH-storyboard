@@ -11,7 +11,12 @@ import socket
 import webbrowser
 import threading
 import requests
-from flask import Flask, request, Response, send_from_directory, jsonify, stream_with_context
+import logging
+from flask import Flask, request, Response, send_from_directory, jsonify, stream_with_context, cli
+
+# Suppress Flask startup banner and redundant default HTTP logs
+cli.show_server_banner = lambda *args: None
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Resolve paths for both dev and PyInstaller frozen bundle
 if getattr(sys, 'frozen', False):
@@ -194,7 +199,7 @@ def main():
     print(f"")
 
     open_browser(port)
-    app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False)
+    app.run(host='127.0.0.1', port=port, debug=True, use_reloader=False)
 
 
 if __name__ == '__main__':

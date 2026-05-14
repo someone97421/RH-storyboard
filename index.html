@@ -812,6 +812,10 @@
         }
 
         @media (max-width: 1023px) {
+            body:not(.task-sidebar-collapsed) {
+                padding-bottom: calc(55vh + 32px);
+            }
+
             .task-sidebar {
                 top: auto;
                 left: 16px;
@@ -833,7 +837,7 @@
 
         @media (min-width: 1024px) {
             body:not(.task-sidebar-collapsed) {
-                padding-right: calc(var(--global-task-sidebar-width) + var(--global-task-sidebar-gap));
+                padding-right: calc(var(--global-task-sidebar-width) + var(--global-task-sidebar-gap) + 16px);
             }
         }
 
