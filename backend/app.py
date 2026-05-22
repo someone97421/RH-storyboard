@@ -70,7 +70,7 @@ def proxy_image():
         return jsonify({'error': 'Missing url parameter'}), 400
 
     try:
-        resp = requests.get(url, timeout=30, stream=True)
+        resp = requests.get(url, timeout=1800, stream=True)
         excluded = {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}
         headers = {k: v for k, v in resp.raw.headers.items() if k.lower() not in excluded}
         return Response(resp.content, status=resp.status_code, headers=headers)
@@ -103,7 +103,7 @@ def proxy_runninghub(subpath):
 
     try:
         body = request.get_data()
-        resp = requests.post(target_url, data=body, headers=headers, timeout=120)
+        resp = requests.post(target_url, data=body, headers=headers, timeout=1800)
 
         excluded = {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}
         resp_headers = {k: v for k, v in resp.headers.items() if k.lower() not in excluded}
@@ -140,7 +140,7 @@ def proxy_llm():
 
     try:
         # Use stream=True so we can relay chunks incrementally
-        upstream = requests.post(target_url, data=body, headers=headers, stream=True, timeout=300)
+        upstream = requests.post(target_url, data=body, headers=headers, stream=True, timeout=1800)
 
         if upstream.status_code != 200:
             # Non-streaming error — return directly
