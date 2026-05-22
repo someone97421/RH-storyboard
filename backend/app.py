@@ -199,8 +199,10 @@ def main():
     print(f"")
 
     open_browser(port)
-    app.run(host='127.0.0.1', port=port, debug=True, use_reloader=False)
+    app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False)
 
 
 if __name__ == '__main__':
+    import multiprocessing
+    multiprocessing.freeze_support()
     main()
